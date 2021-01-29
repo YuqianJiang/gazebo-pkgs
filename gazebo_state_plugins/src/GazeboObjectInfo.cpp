@@ -159,7 +159,7 @@ std::tuple<shape_msgs::SolidPrimitive*, geometry_msgs::Pose*> GazeboObjectInfo::
     else
     {
         //ROS_WARN("shape type %i of collision %s not supported. Using bounding box instead. ", c->GetShapeType(),c->GetName().c_str());
-        gz_math::Box box = GetBoundingBox(*c);
+        GzBox box = GetBoundingBox(*c);
         GzVector3 bb = GetBoundingBoxDimensions(box);
         GzVector3 point = GetCenter(box);
         if ((GetX(bb) < 1e-05) || (GetY(bb) < 1e-05) || (GetZ(bb) < 1e-05)){
