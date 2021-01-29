@@ -129,6 +129,9 @@ gz_math::Box GetBoundingBox(const T &t)
 GzVector3 GetBoundingBoxDimensions(const gz_math::Box &box);
 
 ///////////////////////////////////////////////////////////////////////////////
+GzVector3 GetCenter(const gz_math::Box &box);
+
+///////////////////////////////////////////////////////////////////////////////
 template<typename T>
 GzPose3 GetRelativePose(const T &t)
 {

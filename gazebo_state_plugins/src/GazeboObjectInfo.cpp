@@ -105,7 +105,7 @@ void GazeboObjectInfo::onWorldUpdate() {
 }
 
 
-shape_msgs::SolidPrimitive * GazeboObjectInfo::getSolidPrimitive(physics::CollisionPtr& c) {
+std::tuple<shape_msgs::SolidPrimitive*, geometry_msgs::Pose*> GazeboObjectInfo::getSolidPrimitive(physics::CollisionPtr& c) {
     shape_msgs::SolidPrimitive solid;
     msgs::Geometry geom;
     physics::ShapePtr shape=c->GetShape();
@@ -116,18 +116,19 @@ shape_msgs::SolidPrimitive * GazeboObjectInfo::getSolidPrimitive(physics::Collis
         const gazebo::physics::BoxShape * box=dynamic_cast<const physics::BoxShape*>(shape.get());
         if (!box) {
             ROS_ERROR("Dynamic cast failed for box shape");
-            return NULL;
+            return std::make_tuple<shape_msgs::SolidPrimitive*, geometry_msgs::Pose*>(NULL, NULL);
         }
         GzVector3 bb = gazebo::GetSize3(*box);
         if ((GetX(bb) < 1e-05) || (GetY(bb) < 1e-05) || (GetZ(bb) < 1e-05)){
             ROS_WARN_ONCE("Skipping coll %s because its bounding box is flat",c->GetName().c_str());
-            return NULL;
+            return std::make_tuple<shape_msgs::SolidPrimitive*, geometry_msgs::Pose*>(NULL, NULL);
         }
         solid.type=shape_msgs::SolidPrimitive::BOX;
         solid.dimensions.resize(3);
         solid.dimensions[shape_msgs::SolidPrimitive::BOX_X]=GetX(bb);
         solid.dimensions[shape_msgs::SolidPrimitive::BOX_Y]=GetY(bb);
         solid.dimensions[shape_msgs::SolidPrimitive::BOX_Z]=GetZ(bb);
+        return std::make_tuple<shape_msgs::SolidPrimitive*, geometry_msgs::Pose*>(new shape_msgs::SolidPrimitive(solid), NULL);
     }/*else if (geom.has_cylinder()) {
         ROS_INFO("shape type %i of collision %s is a cylinder! ", c->GetShapeType(), c->GetName().c_str());
         const gazebo::physics::CylinderShape * cyl=dynamic_cast<const physics::CylinderShape*>(shape.get());
@@ -148,29 +149,35 @@ shape_msgs::SolidPrimitive * GazeboObjectInfo::getSolidPrimitive(physics::Collis
         if (!sp)
         {
             ROS_ERROR("Dynamic cast failed for cylinder shape");
-            return NULL;
+            return std::make_tuple<shape_msgs::SolidPrimitive*, geometry_msgs::Pose*>(NULL, NULL);
         }
 
         solid.type=shape_msgs::SolidPrimitive::SPHERE;
         solid.dimensions[shape_msgs::SolidPrimitive::SPHERE_RADIUS] = sp->GetRadius();
+        return std::make_tuple<shape_msgs::SolidPrimitive*, geometry_msgs::Pose*>(new shape_msgs::SolidPrimitive(solid), NULL);
     }
     else
     {
-        ROS_WARN("shape type %i of collision %s not supported. Using bounding box instead. ", c->GetShapeType(),c->GetName().c_str());
+        //ROS_WARN("shape type %i of collision %s not supported. Using bounding box instead. ", c->GetShapeType(),c->GetName().c_str());
         gz_math::Box box = GetBoundingBox(*c);
         GzVector3 bb = GetBoundingBoxDimensions(box);
+        GzVector3 point = GetCenter(box);
         if ((GetX(bb) < 1e-05) || (GetY(bb) < 1e-05) || (GetZ(bb) < 1e-05)){
             ROS_WARN_ONCE("Skipping coll %s because its bounding box is flat",c->GetName().c_str());
-            return NULL;
+            return std::make_tuple<shape_msgs::SolidPrimitive*, geometry_msgs::Pose*>(NULL, NULL);
         }
         solid.type=shape_msgs::SolidPrimitive::BOX;
         solid.dimensions.resize(3);
         solid.dimensions[shape_msgs::SolidPrimitive::BOX_X]=GetX(bb);
         solid.dimensions[shape_msgs::SolidPrimitive::BOX_Y]=GetY(bb);
         solid.dimensions[shape_msgs::SolidPrimitive::BOX_Z]=GetZ(bb);
+        geometry_msgs::Pose origin;
+        origin.position.x = point[0];
+        origin.position.y = point[1];
+        origin.position.z = point[2];
+        return std::make_tuple(new shape_msgs::SolidPrimitive(solid), new geometry_msgs::Pose(origin));
     }
     //ROS_INFO_STREAM("Solid computed."<<std::endl<<solid);
-    return new shape_msgs::SolidPrimitive(solid);
 }
 
 
@@ -227,8 +234,10 @@ GazeboObjectInfo::ObjectMsg GazeboObjectInfo::createBoundingBoxObject(physics::M
             }
     
             if (include_shape) {
+                shape_msgs::SolidPrimitive* solid;
+                geometry_msgs::Pose* origin;
 
-                shape_msgs::SolidPrimitive * solid=getSolidPrimitive(c);
+                tie(solid, origin) = getSolidPrimitive(c);
                 if (!solid) {
                     ROS_WARN("Skipping coll %s of link %s of model %s, could not get SolidPrimitive. ",c->GetName().c_str(),linkName.c_str(),obj.name.c_str());
                     continue;
@@ -236,6 +245,11 @@ GazeboObjectInfo::ObjectMsg GazeboObjectInfo::createBoundingBoxObject(physics::M
 
                 obj.primitives.push_back(*solid);
                 delete solid;
+
+                if (origin) {
+                    obj.primitive_poses.back() = *origin;
+                    delete origin;
+                }
                 obj.content=GazeboObjectInfo::ObjectMsg::SHAPE;
             }else {
                 obj.content=GazeboObjectInfo::ObjectMsg::POSE;

@@ -323,3 +323,13 @@ gazebo::GzVector3 gazebo::GetBoundingBoxDimensions(const gz_math::Box &box)
 #endif
     return bb;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+gazebo::GzVector3 gazebo::GetCenter(const gz_math::Box &box)
+{
+#if GAZEBO_MAJOR_VERSION >= 8
+    return box.Center();
+#else
+    return box.GetCenter();
+#endif
+}
